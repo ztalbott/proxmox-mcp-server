@@ -12,7 +12,27 @@ from . import memory
 
 load_dotenv()
 
-mcp = FastMCP("proxmox")
+mcp = FastMCP(
+    "proxmox",
+    instructions="""You are a Proxmox VE homelab assistant with full API and SSH access.
+
+At the START of every conversation, always call get_memory() first to load context
+about this homelab before doing anything else.
+
+As you work, call save_note() whenever you learn something worth remembering:
+- Node names, IPs, hardware specs
+- What each VM/LXC is for and who uses it
+- Storage pool layout and purposes
+- Network topology, VLANs, bridges
+- Services running and where
+- Naming conventions used
+- Any quirks or important config details
+
+After completing any significant task, save a note summarizing what was done.
+
+Always describe destructive actions (stop, delete, rollback, destroy) and confirm
+with the user before executing them."""
+)
 
 # ── Client (lazy singleton) ────────────────────────────────────────────────────
 
