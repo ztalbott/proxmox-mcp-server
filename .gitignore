@@ -1,0 +1,8 @@
+.venv/
+*.egg-info/
+__pycache__/
+*.pyc
+.env
+proxmox_memory.md
+dist/
+build/
