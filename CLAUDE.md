@@ -10,11 +10,13 @@ Claude desktop app.
 
 ## Setup
 
-```powershell
+Requires Python 3.11+.
+
+```bash
 python -m venv .venv
-.venv\Scripts\activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
-copy .env.example .env   # fill in credentials
+cp .env.example .env        # fill in credentials
 ```
 
 Required `.env`: `PROXMOX_HOST`, `PROXMOX_TOKEN_ID`, `PROXMOX_TOKEN_SECRET`
@@ -50,15 +52,18 @@ src/proxmox_mcp/
 
 ## Connecting to Claude desktop
 
-`%APPDATA%\Claude\claude_desktop_config.json`:
+`%APPDATA%\Claude\claude_desktop_config.json` (Windows) or
+`~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
 ```json
 {
   "mcpServers": {
     "proxmox": {
-      "command": "C:\\Claude Projects\\proxmox-mcp-server\\.venv\\Scripts\\python.exe",
+      "command": "/path/to/proxmox-mcp-server/.venv/bin/python",
       "args": ["-m", "proxmox_mcp.server"],
-      "cwd": "C:\\Claude Projects\\proxmox-mcp-server"
+      "cwd": "/path/to/proxmox-mcp-server"
     }
   }
 }
 ```
+
+On Windows use `.venv\Scripts\python.exe` and backslashes in the paths.

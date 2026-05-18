@@ -6,15 +6,34 @@ Works with the Claude desktop app using your subscription (no API credits needed
 
 ---
 
+## Requirements
+
+- Python 3.11+
+- A Proxmox VE host reachable from your machine
+- A Proxmox API token with **Privilege Separation unchecked**
+
+---
+
 ## Quick Setup
 
+Clone the repo and run these commands from the project directory:
+
+**Windows (PowerShell)**
 ```powershell
-cd "C:\Claude Projects\proxmox-mcp-server"
 python -m venv .venv
 .venv\Scripts\activate
 pip install -e .
 copy .env.example .env
 notepad .env
+```
+
+**macOS / Linux**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+cp .env.example .env
+nano .env
 ```
 
 Fill in `.env`:
@@ -24,7 +43,7 @@ PROXMOX_TOKEN_ID=root@pam!mcp-token
 PROXMOX_TOKEN_SECRET=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 VERIFY_SSL=false
 PROXMOX_SSH_USER=root
-PROXMOX_SSH_KEY=C:\Users\you\.ssh\id_rsa
+PROXMOX_SSH_KEY=/path/to/.ssh/id_rsa
 ```
 
 > **Important:** The Proxmox API token must be created with **Privilege Separation unchecked**.
@@ -33,19 +52,22 @@ PROXMOX_SSH_KEY=C:\Users\you\.ssh\id_rsa
 
 ## Connect to Claude Desktop App
 
-Edit `%APPDATA%\Claude\claude_desktop_config.json`:
+Edit `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or
+`~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
 
 ```json
 {
   "mcpServers": {
     "proxmox": {
-      "command": "C:\\Claude Projects\\proxmox-mcp-server\\.venv\\Scripts\\python.exe",
+      "command": "/path/to/proxmox-mcp-server/.venv/bin/python",
       "args": ["-m", "proxmox_mcp.server"],
-      "cwd": "C:\\Claude Projects\\proxmox-mcp-server"
+      "cwd": "/path/to/proxmox-mcp-server"
     }
   }
 }
 ```
+
+On Windows use the `.venv\Scripts\python.exe` path and backslashes.
 
 Restart the Claude app. You can now say things like:
 - *"List my VMs"*
