@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-MEMORY_FILE = Path(__file__).resolve().parents[3] / "proxmox_memory.md"
+MEMORY_FILE = Path(__file__).resolve().parents[2] / "proxmox_memory.md"
 
 # Tools that modify state — these get auto-logged
 CHANGE_TOOLS: frozenset[str] = frozenset({
