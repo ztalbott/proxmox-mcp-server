@@ -4,13 +4,16 @@ import json
 import os
 from typing import Any
 
+from pathlib import Path
+
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
 from .proxmox import ProxmoxClient
 from . import memory
 
-load_dotenv()
+# Load .env from project root regardless of working directory
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 mcp = FastMCP(
     "proxmox",
