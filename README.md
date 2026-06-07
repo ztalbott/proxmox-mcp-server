@@ -4,17 +4,24 @@ MCP server that gives Claude direct control of your Proxmox VE homelab — VMs, 
 snapshots, backups, firewall, storage, networking, tasks, pools, and SSH shell access.
 Works with the Claude desktop app using your subscription (no API credits needed).
 
+It runs in two modes from the **same codebase**, selected by `MCP_TRANSPORT` in `.env`:
+
+| Mode | `MCP_TRANSPORT` | Use case |
+|---|---|---|
+| **Local** | `stdio` (default) | Claude desktop spawns the process on your PC. Only runs while the app is open. |
+| **Service** | `streamable-http` | A persistent, always-on network service (e.g. on a Proxmox LXC), reachable by networked MCP clients. Requires a bearer token. |
+
 ---
 
 ## Requirements
 
 - Python 3.11+
-- A Proxmox VE host reachable from your machine
+- A Proxmox VE host reachable from where the server runs
 - A Proxmox API token with **Privilege Separation unchecked**
 
 ---
 
-## Quick Setup
+## Mode A — Local on your PC (stdio)
 
 Clone the repo and run these commands from the project directory:
 
@@ -74,6 +81,75 @@ Restart the Claude app. You can now say things like:
 - *"Show me the status of node pve1"*
 - *"Take a snapshot of VM 101 called before-update"*
 - *"What's running on my homelab?"*
+
+---
+
+## Mode B — Persistent service on a Proxmox LXC (HTTP)
+
+Runs the server as an always-on systemd service so it works even when your PC is off,
+and can be reached by networked MCP clients.
+
+> ⚠️ **Security:** in HTTP mode this server is a network endpoint that can run **arbitrary
+> root shell commands** on your Proxmox host (`run_ssh_command`). It therefore **refuses to
+> start without `MCP_AUTH_TOKEN` set**, and rejects any request lacking a matching
+> `Authorization: Bearer <token>` header. Keep it on a trusted/LAN or Tailscale network —
+> do not expose the port directly to the public internet.
+
+**1. On the LXC (Debian/Ubuntu), clone and install:**
+```bash
+sudo apt update && sudo apt install -y python3-venv git
+sudo git clone https://github.com/tail412/proxmox-mcp-server.git /opt/proxmox-homelab
+cd /opt/proxmox-homelab
+python3 -m venv .venv
+.venv/bin/pip install .
+cp .env.example .env
+```
+
+**2. Give the LXC its own SSH access to the Proxmox host** (separate key from your PC):
+```bash
+ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N ""
+ssh-copy-id -i /root/.ssh/id_ed25519.pub root@192.168.1.100   # the pve host
+```
+
+**3. Edit `.env`** for service mode:
+```
+PROXMOX_HOST=192.168.1.100
+PROXMOX_TOKEN_ID=root@pam!mcp-token
+PROXMOX_TOKEN_SECRET=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+VERIFY_SSL=false
+PROXMOX_SSH_USER=root
+PROXMOX_SSH_KEY=/root/.ssh/id_ed25519
+
+MCP_TRANSPORT=streamable-http
+MCP_HOST=0.0.0.0
+MCP_PORT=8000
+MCP_AUTH_TOKEN=          # generate: python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+MCP_REQUIRE_AUTH=true
+
+PROXMOX_MEMORY_FILE=/opt/proxmox-homelab/proxmox_memory.md
+```
+
+**4. Migrate existing memory** (optional) — copy the `proxmox_memory.md` built on your PC to
+the path above so the homelab's accumulated knowledge carries over:
+```bash
+scp proxmox_memory.md root@192.168.1.107:/opt/proxmox-homelab/proxmox_memory.md
+```
+
+**5. Install the systemd service:**
+```bash
+sudo cp deploy/proxmox-mcp.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now proxmox-mcp.service
+journalctl -u proxmox-mcp.service -f
+```
+
+**6. (Away-from-home access)** To reach it from `claude.ai` / the mobile app — which connect
+via Anthropic's cloud, not your LAN — expose just this service with
+[Tailscale Funnel](https://tailscale.com/kb/1223/funnel). Plain Tailscale is enough for a
+desktop client on your own tailnet.
+
+**Docker alternative:** a `Dockerfile` and `.dockerignore` are included — see the header
+comments in `Dockerfile` for build/run commands.
 
 ---
 

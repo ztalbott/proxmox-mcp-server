@@ -24,16 +24,29 @@ Optional: `PROXMOX_SSH_HOST`, `PROXMOX_SSH_USER`, `PROXMOX_SSH_KEY` or `PROXMOX_
 
 **API token must have Privilege Separation unchecked.**
 
+### Transport / deployment env
+
+- `MCP_TRANSPORT` — `stdio` (default, local PC), `streamable-http`, or `sse`
+- `MCP_HOST` / `MCP_PORT` — bind address for HTTP modes (default `0.0.0.0:8000`)
+- `MCP_AUTH_TOKEN` — bearer token; **required** in HTTP modes (server refuses to start
+  without it unless `MCP_REQUIRE_AUTH=false` for isolated testing)
+- `PROXMOX_MEMORY_FILE` — override the memory file location (portability for LXC/container)
+
 ## Architecture
 
 ```
 src/proxmox_mcp/
-├── server.py    FastMCP server — all ~55 tool definitions
+├── server.py    FastMCP server — all tool defs + transport selection (main()) + HTTP auth
 ├── proxmox.py   ProxmoxClient — proxmoxer wrapper for every API call
-└── memory.py    Reads/writes proxmox_memory.md (save_note, update_note, log_change)
+└── memory.py    Reads/writes the memory file (save_note, update_note, log_change)
+deploy/
+└── proxmox-mcp.service   systemd unit for running as an HTTP service on an LXC
+Dockerfile       containerized HTTP deployment
 ```
 
-`proxmox_memory.md` lives at project root, gitignored, persists across sessions.
+`proxmox_memory.md` lives at project root by default (override via `PROXMOX_MEMORY_FILE`),
+gitignored, persists across sessions. The path resolves lazily at call time (`memory_file()`),
+so the env override applies regardless of import order.
 
 ## Adding tools
 
@@ -45,10 +58,12 @@ src/proxmox_mcp/
 
 - Uses `FastMCP` — tool docstrings become the descriptions Claude sees
 - SSH runs as root — mark destructive commands clearly in docstrings
-- stdio transport (default) for Claude desktop app compatibility
+- stdio transport (default) for Claude desktop app; HTTP modes for the LXC service
+- HTTP modes are bearer-token authenticated and fail-safe (no token → won't start)
+- `load_dotenv()` runs before submodule imports so module-level env reads work
 - `_run()` helper in server.py calls the method AND logs to memory
 - Read-only tools use `_fmt()` directly, no logging
-- `proxmox_memory.md` is gitignored — never commit it
+- The memory file is gitignored (incl. backups) — never commit homelab data
 
 ## Connecting to Claude desktop
 

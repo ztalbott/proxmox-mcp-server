@@ -1,0 +1,43 @@
+# systemd unit for running the Proxmox MCP server as a persistent HTTP service.
+#
+# Install on the LXC (assumes the repo is cloned to /opt/proxmox-homelab and a
+# virtualenv exists at /opt/proxmox-homelab/.venv):
+#
+#   sudo cp deploy/proxmox-mcp.service /etc/systemd/system/proxmox-mcp.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now proxmox-mcp.service
+#   systemctl status proxmox-mcp.service
+#   journalctl -u proxmox-mcp.service -f      # follow logs
+#
+# Config (transport, port, MCP_AUTH_TOKEN, SSH key, memory path) is read from the
+# .env file in WorkingDirectory — edit that, then: sudo systemctl restart proxmox-mcp
+
+[Unit]
+Description=Proxmox MCP Server
+Documentation=https://github.com/tail412/proxmox-mcp-server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/proxmox-homelab
+ExecStart=/opt/proxmox-homelab/.venv/bin/python -m proxmox_mcp.server
+Restart=on-failure
+RestartSec=5
+
+# Run as a dedicated non-login user instead of root where possible.
+# If run_ssh_command must reach pve, this user needs read access to the SSH key
+# referenced by PROXMOX_SSH_KEY in .env.
+User=mcp
+Group=mcp
+
+# Hardening — relax only if something legitimately needs more access.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# Allow writing the memory file + any runtime state under the app dir.
+ReadWritePaths=/opt/proxmox-homelab
+
+[Install]
+WantedBy=multi-user.target

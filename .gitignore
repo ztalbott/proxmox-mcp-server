@@ -3,6 +3,11 @@
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
 proxmox_memory.md
+# Environment-specific memory + any backups/exports of it — never commit homelab data
+proxmox_memory*.md
+*_backup_*.md
 dist/
 build/

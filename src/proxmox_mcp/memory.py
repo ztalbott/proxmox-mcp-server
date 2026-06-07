@@ -1,11 +1,26 @@
 """Persistent memory: environment notes + change log stored in proxmox_memory.md."""
 from __future__ import annotations
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
 
-MEMORY_FILE = Path(__file__).resolve().parents[2] / "proxmox_memory.md"
+# Default: <project root>/proxmox_memory.md (works for the local PC / stdio setup).
+# Override with PROXMOX_MEMORY_FILE so the same code is portable to an LXC/container
+# where the file lives at a deployment-specific path (e.g. /opt/proxmox-homelab/...).
+_DEFAULT_MEMORY_FILE = Path(__file__).resolve().parents[2] / "proxmox_memory.md"
+
+
+def memory_file() -> Path:
+    """Resolve the memory file path at call time.
+
+    Read lazily (not at import) so PROXMOX_MEMORY_FILE works even if .env is
+    loaded after this module is imported, and regardless of which entry point
+    imports it.
+    """
+    override = os.environ.get("PROXMOX_MEMORY_FILE", "").strip()
+    return Path(override).expanduser() if override else _DEFAULT_MEMORY_FILE
 
 # Tools that modify state — these get auto-logged
 CHANGE_TOOLS: frozenset[str] = frozenset({
@@ -46,12 +61,14 @@ _TEMPLATE = """\
 
 
 def _read() -> str:
-    return MEMORY_FILE.read_text(encoding="utf-8") if MEMORY_FILE.exists() else ""
+    path = memory_file()
+    return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
 def _write(content: str) -> None:
-    MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    MEMORY_FILE.write_text(content, encoding="utf-8")
+    path = memory_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
 
 
 def _ensure() -> str:

@@ -1,0 +1,17 @@
+.git
+.gitignore
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+# Never copy secrets or environment-specific data into the build context
+.env
+.env.*
+!.env.example
+proxmox_memory*.md
+*_backup_*.md
+deploy/
+Dockerfile
+.dockerignore
