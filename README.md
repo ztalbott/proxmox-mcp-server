@@ -93,7 +93,7 @@ Restart the Claude app. You can now say things like:
 | LXC Snapshots | `list_lxc_snapshots`, `snapshot_lxc`, `rollback_lxc_snapshot`⚠️, `delete_lxc_snapshot`⚠️ |
 | Firewall | `list_firewall_rules`, `get_firewall_options`, `set_firewall_options`, `add_firewall_rule`, `update_firewall_rule`, `delete_firewall_rule`⚠️, `list_firewall_ipsets`, `list_firewall_aliases` |
 | SSH | `run_ssh_command` — run any shell command on the host as root |
-| Memory | `save_note`, `get_memory` — persistent homelab knowledge across sessions |
+| Memory | `save_note`, `update_note`, `get_memory` — persistent homelab knowledge across sessions (`update_note` replaces a previous note with the same heading instead of duplicating it — used for recurring docs like full audits) |
 
 ⚠️ = destructive — Claude will describe and ask you to confirm before executing.
 

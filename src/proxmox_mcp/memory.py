@@ -1,6 +1,7 @@
 """Persistent memory: environment notes + change log stored in proxmox_memory.md."""
 from __future__ import annotations
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -82,6 +83,74 @@ def save_note(note: str) -> str:
         content += f"\n## Environment Notes\n{entry}"
     _write(content)
     return "Note saved."
+
+
+_BULLET_RE = re.compile(r"^- \[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] ", re.MULTILINE)
+
+
+def update_note(heading: str, note: str) -> str:
+    """Save a note in Environment Notes, replacing any existing note that starts
+    with the same `heading` instead of appending a new copy alongside it.
+
+    Use this for recurring structured documents (e.g. a "Full Audit" that gets
+    re-saved as the homelab evolves) so re-saving updates the entry in place
+    rather than letting duplicates pile up.
+    """
+    content = _ensure()
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    new_entry = f"- [{ts}] {note}"
+
+    marker = "## Environment Notes\n"
+    if marker not in content:
+        content += f"\n## Environment Notes\n\n{new_entry}\n"
+        _write(content)
+        return "Note saved (section created)."
+
+    start = content.index(marker) + len(marker)
+    rest = content[start:]
+    if rest.lstrip().startswith("<!--"):
+        start += rest.index("-->") + 3
+
+    end_marker = "\n## Change Log"
+    rel_end = content.find(end_marker, start)
+    section_end = rel_end if rel_end != -1 else len(content)
+    section = content[start:section_end]
+
+    heading_re = re.compile(
+        r"^- \[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] " + re.escape(heading),
+        re.MULTILINE,
+    )
+
+    # Collect every existing entry whose heading matches (self-heals if duplicates
+    # already piled up), so they all get collapsed into the one fresh entry.
+    spans: list[tuple[int, int]] = []
+    for m in heading_re.finditer(section):
+        next_bullet = _BULLET_RE.search(section, m.end())
+        entry_end = next_bullet.start() if next_bullet else len(section)
+        spans.append((m.start(), entry_end))
+
+    if spans:
+        first_start = spans[0][0]
+        new_section = section[:first_start] + new_entry + "\n"
+        prev_end = spans[0][1]
+        for s, e in spans[1:]:
+            new_section += section[prev_end:s]
+            prev_end = e
+        new_section += section[prev_end:]
+        n = len(spans)
+        msg = (
+            "Note updated (replaced previous version with the same heading)."
+            if n == 1
+            else f"Note updated (collapsed {n} duplicate entries with this heading into one)."
+        )
+    else:
+        sep = "" if section.endswith("\n\n") else ("\n" if section.endswith("\n") else "\n\n")
+        new_section = section + sep + new_entry + "\n"
+        msg = "Note saved (no existing entry with this heading — added new)."
+
+    content = content[:start] + new_section + content[section_end:]
+    _write(content)
+    return msg
 
 
 def log_change(tool_name: str, params: dict, result: str) -> None:

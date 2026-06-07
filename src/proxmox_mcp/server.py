@@ -22,7 +22,8 @@ mcp = FastMCP(
 At the START of every conversation, always call get_memory() first to load context
 about this homelab before doing anything else.
 
-As you work, call save_note() whenever you learn something worth remembering:
+As you work, call save_note() whenever you learn something small and standalone
+worth remembering:
 - Node names, IPs, hardware specs
 - What each VM/LXC is for and who uses it
 - Storage pool layout and purposes
@@ -30,6 +31,13 @@ As you work, call save_note() whenever you learn something worth remembering:
 - Services running and where
 - Naming conventions used
 - Any quirks or important config details
+
+For recurring structured documents you regenerate over time — especially a full
+homelab audit/snapshot — use update_note(heading, note) INSTEAD of save_note().
+Pass the same heading each time (e.g. "# Homelab Environment — Full Audit") and
+update_note will replace the previous version in place rather than stacking a new
+duplicate copy alongside it. This keeps memory lean — never re-save a full audit
+with save_note().
 
 After completing any significant task, save a note summarizing what was done.
 
@@ -628,6 +636,23 @@ def save_note(note: str) -> str:
     node names/IPs, VM purposes, storage layout, credentials hints, naming conventions,
     network topology, important service locations."""
     return memory.save_note(note)
+
+
+@mcp.tool()
+def update_note(heading: str, note: str) -> str:
+    """Save or update a long-form/structured note in memory, replacing any existing
+    note that starts with the same heading instead of stacking a duplicate copy.
+
+    Use this (NOT save_note) for recurring documents you regenerate over time —
+    e.g. a full homelab audit titled "# Homelab Environment — Full Audit". Pass the
+    exact heading text the note starts with, and the full new note content (including
+    that heading as its first line). If a previous note with that heading exists it
+    is replaced in place; otherwise the note is added fresh.
+
+    heading: the exact leading text identifying this note, e.g. "# Homelab Environment — Full Audit"
+    note: the complete new note content (markdown), starting with `heading`
+    """
+    return memory.update_note(heading, note)
 
 
 @mcp.tool()

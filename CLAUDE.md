@@ -30,7 +30,7 @@ Optional: `PROXMOX_SSH_HOST`, `PROXMOX_SSH_USER`, `PROXMOX_SSH_KEY` or `PROXMOX_
 src/proxmox_mcp/
 ├── server.py    FastMCP server — all ~55 tool definitions
 ├── proxmox.py   ProxmoxClient — proxmoxer wrapper for every API call
-└── memory.py    Reads/writes proxmox_memory.md (save_note + log_change)
+└── memory.py    Reads/writes proxmox_memory.md (save_note, update_note, log_change)
 ```
 
 `proxmox_memory.md` lives at project root, gitignored, persists across sessions.
