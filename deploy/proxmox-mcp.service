@@ -1,16 +1,19 @@
 # systemd unit for running the Proxmox MCP server as a persistent HTTP service.
 #
-# Install on the LXC (assumes the repo is cloned to /opt/proxmox-homelab and a
-# virtualenv exists at /opt/proxmox-homelab/.venv):
+# Install on the LXC (assumes the repo is at /opt/proxmox-homelab with a venv at
+# /opt/proxmox-homelab/.venv and a filled-in /opt/proxmox-homelab/.env):
 #
 #   sudo cp deploy/proxmox-mcp.service /etc/systemd/system/proxmox-mcp.service
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now proxmox-mcp.service
-#   systemctl status proxmox-mcp.service
-#   journalctl -u proxmox-mcp.service -f      # follow logs
+#   journalctl -u proxmox-mcp.service -f
 #
-# Config (transport, port, MCP_AUTH_TOKEN, SSH key, memory path) is read from the
-# .env file in WorkingDirectory — edit that, then: sudo systemctl restart proxmox-mcp
+# Reconfigure (transport, port, MCP_AUTH_TOKEN, SSH key, memory path) by editing
+# the .env file, then: sudo systemctl restart proxmox-mcp
+#
+# NOTE: EnvironmentFile loads .env directly into the service environment, so the
+# transport/auth settings are applied no matter how the package was installed.
+# Do not remove it — without it the process may fall back to stdio and exit.
 
 [Unit]
 Description=Proxmox MCP Server
@@ -21,23 +24,26 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/proxmox-homelab
+EnvironmentFile=/opt/proxmox-homelab/.env
 ExecStart=/opt/proxmox-homelab/.venv/bin/python -m proxmox_mcp.server
 Restart=on-failure
 RestartSec=5
 
-# Run as a dedicated non-login user instead of root where possible.
-# If run_ssh_command must reach pve, this user needs read access to the SSH key
-# referenced by PROXMOX_SSH_KEY in .env.
-User=mcp
-Group=mcp
-
-# Hardening — relax only if something legitimately needs more access.
-NoNewPrivileges=true
+# Runs as root by default so run_ssh_command can read the SSH key in /root/.ssh.
+User=root
+Group=root
 PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-# Allow writing the memory file + any runtime state under the app dir.
-ReadWritePaths=/opt/proxmox-homelab
+
+# ── Optional hardening ───────────────────────────────────────────────────────
+# To run as a dedicated unprivileged user instead of root:
+#   1. useradd --system --home /opt/proxmox-homelab --shell /usr/sbin/nologin mcp
+#   2. move the SSH key somewhere mcp can read (e.g. /opt/proxmox-homelab/.ssh/)
+#      and point PROXMOX_SSH_KEY at it; chown -R mcp:mcp /opt/proxmox-homelab
+#   3. set User=mcp / Group=mcp above and uncomment the lines below.
+# NoNewPrivileges=true
+# ProtectSystem=strict
+# ProtectHome=read-only          # 'true' hides /root — breaks an SSH key kept there
+# ReadWritePaths=/opt/proxmox-homelab
 
 [Install]
 WantedBy=multi-user.target

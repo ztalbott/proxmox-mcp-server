@@ -9,9 +9,25 @@ from pathlib import Path
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
-# Load .env from project root regardless of working directory, BEFORE importing
-# submodules — so any module-level environment reads (e.g. memory paths) see it.
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+# Load .env BEFORE importing submodules so module-level env reads (e.g. memory
+# paths) see it. Search several locations so it works whether the package is
+# installed editable (src/ layout), installed normally (site-packages), run from
+# the project dir, or launched by systemd with WorkingDirectory set.
+def _load_env() -> None:
+    candidates = []
+    explicit = os.getenv("PROXMOX_DOTENV")
+    if explicit:
+        candidates.append(Path(explicit))
+    candidates.append(Path(__file__).resolve().parents[2] / ".env")  # editable install
+    candidates.append(Path.cwd() / ".env")                            # cwd / systemd WD
+    for c in candidates:
+        if c.is_file():
+            load_dotenv(c)
+            return
+    load_dotenv()  # fall back to python-dotenv's own upward search
+
+
+_load_env()
 
 from .proxmox import ProxmoxClient  # noqa: E402
 from . import memory  # noqa: E402
