@@ -699,6 +699,7 @@ def _run_http(transport: str) -> None:
     import hmac
 
     import uvicorn
+    from mcp.server.transport_security import TransportSecuritySettings
     from starlette.middleware.base import BaseHTTPMiddleware
     from starlette.responses import JSONResponse
 
@@ -706,6 +707,7 @@ def _run_http(transport: str) -> None:
     port = int(os.getenv("MCP_PORT", "8000"))
     token = os.getenv("MCP_AUTH_TOKEN", "").strip()
     require_auth = _bool_env("MCP_REQUIRE_AUTH", True)
+    allowed_hosts = [h.strip() for h in os.getenv("MCP_ALLOWED_HOSTS", "").split(",") if h.strip()]
 
     if require_auth and not token:
         raise SystemExit(
@@ -717,6 +719,20 @@ def _run_http(transport: str) -> None:
 
     mcp.settings.host = host
     mcp.settings.port = port
+
+    # The SDK's DNS-rebinding protection rejects any Host header not on its
+    # allowlist (default: localhost only), which breaks LAN/tailnet access.
+    # If MCP_ALLOWED_HOSTS is set (comma-separated, e.g. "192.168.1.107:8000"
+    # or "192.168.1.107:*"), enforce it. Otherwise disable the check — bearer
+    # auth already blocks DNS-rebinding abuse, since browsers cannot attach an
+    # Authorization header cross-origin.
+    if allowed_hosts:
+        security = TransportSecuritySettings(
+            enable_dns_rebinding_protection=True, allowed_hosts=allowed_hosts
+        )
+    else:
+        security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
+    mcp.settings.transport_security = security
 
     app = mcp.sse_app() if transport == "sse" else mcp.streamable_http_app()
 
