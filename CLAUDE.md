@@ -30,6 +30,8 @@ Optional: `PROXMOX_SSH_HOST`, `PROXMOX_SSH_USER`, `PROXMOX_SSH_KEY` or `PROXMOX_
 - `MCP_HOST` / `MCP_PORT` — bind address for HTTP modes (default `0.0.0.0:8000`)
 - `MCP_AUTH_TOKEN` — bearer token; **required** in HTTP modes (server refuses to start
   without it unless `MCP_REQUIRE_AUTH=false` for isolated testing)
+- `MCP_ALLOWED_HOSTS` — comma-separated Host-header allowlist for the SDK's DNS-rebinding
+  protection (e.g. `192.168.1.107:*`). Empty disables the check (bearer auth still applies).
 - `PROXMOX_MEMORY_FILE` — override the memory file location (portability for LXC/container)
 
 ## Architecture
@@ -61,6 +63,8 @@ so the env override applies regardless of import order.
 - stdio transport (default) for Claude desktop app; HTTP modes for the LXC service
 - HTTP modes are bearer-token authenticated and fail-safe (no token → won't start)
 - `load_dotenv()` runs before submodule imports so module-level env reads work
+- systemd deploys must use `EnvironmentFile=` in the unit (see `deploy/proxmox-mcp.service`) —
+  without it `.env` vars don't reach the process and it silently falls back to stdio
 - `_run()` helper in server.py calls the method AND logs to memory
 - Read-only tools use `_fmt()` directly, no logging
 - The memory file is gitignored (incl. backups) — never commit homelab data
