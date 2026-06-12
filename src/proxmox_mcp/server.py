@@ -9,11 +9,28 @@ from pathlib import Path
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
-from .proxmox import ProxmoxClient
-from . import memory
+# Load .env BEFORE importing submodules so module-level env reads (e.g. memory
+# paths) see it. Search several locations so it works whether the package is
+# installed editable (src/ layout), installed normally (site-packages), run from
+# the project dir, or launched by systemd with WorkingDirectory set.
+def _load_env() -> None:
+    candidates = []
+    explicit = os.getenv("PROXMOX_DOTENV")
+    if explicit:
+        candidates.append(Path(explicit))
+    candidates.append(Path(__file__).resolve().parents[2] / ".env")  # editable install
+    candidates.append(Path.cwd() / ".env")                            # cwd / systemd WD
+    for c in candidates:
+        if c.is_file():
+            load_dotenv(c)
+            return
+    load_dotenv()  # fall back to python-dotenv's own upward search
 
-# Load .env from project root regardless of working directory
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
+_load_env()
+
+from .proxmox import ProxmoxClient  # noqa: E402
+from . import memory  # noqa: E402
 
 mcp = FastMCP(
     "proxmox",
@@ -665,8 +682,89 @@ def get_memory() -> str:
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+_HTTP_TRANSPORTS = {"streamable-http", "sse"}
+
+
+def _bool_env(name: str, default: bool = False) -> bool:
+    return os.getenv(name, str(default)).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _run_http(transport: str) -> None:
+    """Run an HTTP transport (streamable-http or sse) behind a required bearer token.
+
+    Fail-safe: refuses to start if MCP_AUTH_TOKEN is unset, so a network-exposed
+    server (which gives root SSH access via run_ssh_command) can never come up
+    unauthenticated. Set MCP_REQUIRE_AUTH=false only for trusted, isolated testing.
+    """
+    import hmac
+
+    import uvicorn
+    from mcp.server.transport_security import TransportSecuritySettings
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import JSONResponse
+
+    host = os.getenv("MCP_HOST", "0.0.0.0").strip()
+    port = int(os.getenv("MCP_PORT", "8000"))
+    token = os.getenv("MCP_AUTH_TOKEN", "").strip()
+    require_auth = _bool_env("MCP_REQUIRE_AUTH", True)
+    allowed_hosts = [h.strip() for h in os.getenv("MCP_ALLOWED_HOSTS", "").split(",") if h.strip()]
+
+    if require_auth and not token:
+        raise SystemExit(
+            "Refusing to start: MCP_AUTH_TOKEN is empty but transport is "
+            f"'{transport}'. This server exposes root SSH access — set a strong "
+            "MCP_AUTH_TOKEN in your .env, or set MCP_REQUIRE_AUTH=false only for "
+            "isolated local testing."
+        )
+
+    mcp.settings.host = host
+    mcp.settings.port = port
+
+    # The SDK's DNS-rebinding protection rejects any Host header not on its
+    # allowlist (default: localhost only), which breaks LAN/tailnet access.
+    # If MCP_ALLOWED_HOSTS is set (comma-separated, e.g. "192.168.1.107:8000"
+    # or "192.168.1.107:*"), enforce it. Otherwise disable the check — bearer
+    # auth already blocks DNS-rebinding abuse, since browsers cannot attach an
+    # Authorization header cross-origin.
+    if allowed_hosts:
+        security = TransportSecuritySettings(
+            enable_dns_rebinding_protection=True, allowed_hosts=allowed_hosts
+        )
+    else:
+        security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
+    mcp.settings.transport_security = security
+
+    app = mcp.sse_app() if transport == "sse" else mcp.streamable_http_app()
+
+    if token:
+        expected = f"Bearer {token}"
+
+        class BearerAuthMiddleware(BaseHTTPMiddleware):
+            async def dispatch(self, request, call_next):
+                provided = request.headers.get("authorization", "")
+                # constant-time compare to avoid leaking the token via timing
+                if not hmac.compare_digest(provided, expected):
+                    return JSONResponse({"error": "unauthorized"}, status_code=401)
+                return await call_next(request)
+
+        app.add_middleware(BearerAuthMiddleware)
+
+    auth_state = "bearer-token auth ON" if token else "AUTH DISABLED (testing)"
+    print(f"[proxmox-mcp] {transport} on http://{host}:{port}  ({auth_state})")
+    uvicorn.run(app, host=host, port=port)
+
+
 def main() -> None:
-    mcp.run()
+    transport = os.getenv("MCP_TRANSPORT", "stdio").strip().lower()
+    if transport in _HTTP_TRANSPORTS:
+        _run_http(transport)
+    elif transport in ("stdio", ""):
+        mcp.run()  # local PC / Claude desktop — stdio, no network exposure
+    else:
+        raise SystemExit(
+            f"Unknown MCP_TRANSPORT={transport!r}. "
+            "Use 'stdio' (default), 'streamable-http', or 'sse'."
+        )
 
 
 if __name__ == "__main__":

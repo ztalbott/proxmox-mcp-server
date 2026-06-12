@@ -13,6 +13,10 @@ dependencies = [
     "requests>=2.31.0",
     "paramiko>=3.4.0",
     "python-dotenv>=1.0.0",
+    # Imported directly by server.py for the HTTP transport modes (also pulled in
+    # transitively by mcp, but declared here since we import them directly).
+    "starlette>=0.27",
+    "uvicorn>=0.31.1; sys_platform != 'emscripten'",
 ]
 
 [project.scripts]
