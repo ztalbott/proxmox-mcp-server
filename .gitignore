@@ -11,3 +11,7 @@ proxmox_memory*.md
 *_backup_*.md
 dist/
 build/
+
+# local backups
+*.bak-*
+proxmox_memory.md.bak-*

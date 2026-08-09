@@ -6,6 +6,10 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+# Keep only the most recent N auto-logged change entries so the file cannot
+# grow without bound and overflow the model context on get_memory.
+MAX_CHANGELOG_ENTRIES = 40
+
 # Default: <project root>/proxmox_memory.md (works for the local PC / stdio setup).
 # Override with PROXMOX_MEMORY_FILE so the same code is portable to an LXC/container
 # where the file lives at a deployment-specific path (e.g. /opt/proxmox-homelab/...).
@@ -45,8 +49,9 @@ CHANGE_TOOLS: frozenset[str] = frozenset({
     "delete_storage_content",
     # Pools
     "create_pool", "delete_pool",
-    # SSH
-    "run_ssh_command",
+    # NOTE: run_ssh_command intentionally NOT auto-logged — it is used for
+    # reads/diagnostics far more than changes, which floods the log. Meaningful
+    # SSH-driven changes are recorded manually in the curated snapshot instead.
 })
 
 _TEMPLATE = """\
@@ -191,4 +196,31 @@ def log_change(tool_name: str, params: dict, result: str) -> None:
         content = content[:idx] + entry + content[idx:]
     else:
         content += f"\n## Change Log\n{entry}"
+    content = _prune_changelog(content)
     _write(content)
+
+
+def _prune_changelog(content: str, keep: int = MAX_CHANGELOG_ENTRIES) -> str:
+    """Trim the Change Log to the most recent `keep` entries (newest first).
+
+    Entries are appended newest-first (inserted right after the header), so we
+    keep the first `keep` `### ` blocks and drop the rest. Everything above the
+    Change Log header (the curated snapshot) is left untouched.
+    """
+    marker = "## Change Log\n"
+    if marker not in content:
+        return content
+    head_idx = content.index(marker) + len(marker)
+    head, log = content[:head_idx], content[head_idx:]
+    # optional HTML comment line right after the header
+    lead = ""
+    if log.lstrip().startswith("<!--"):
+        cut = log.index("-->") + 3
+        lead, log = log[:cut], log[cut:]
+    parts = log.split("\n### ")
+    # parts[0] is any text before the first entry; entries are parts[1:]
+    if len(parts) - 1 <= keep:
+        return content
+    kept = parts[:1] + parts[1:keep + 1]
+    new_log = "\n### ".join(kept)
+    return head + lead + new_log
