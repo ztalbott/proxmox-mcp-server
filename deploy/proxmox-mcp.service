@@ -17,7 +17,7 @@
 
 [Unit]
 Description=Proxmox MCP Server
-Documentation=https://github.com/tail412/proxmox-mcp-server
+Documentation=https://github.com/ztalbott/proxmox-mcp-server
 After=network-online.target
 Wants=network-online.target
 

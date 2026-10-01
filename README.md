@@ -173,7 +173,7 @@ sudo apt update && sudo apt install -y python3-venv git
 # For a private fork, generate a deploy key and add it to GitHub first:
 #   ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519_github -N ""
 #   gh repo deploy-key add /root/.ssh/id_ed25519_github.pub --title lxc --repo <you>/proxmox-mcp-server
-git clone https://github.com/tail412/proxmox-mcp-server.git /opt/proxmox-homelab
+git clone https://github.com/ztalbott/proxmox-mcp-server.git /opt/proxmox-homelab
 cd /opt/proxmox-homelab
 python3 -m venv .venv
 .venv/bin/pip install .
